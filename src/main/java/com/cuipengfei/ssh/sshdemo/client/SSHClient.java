@@ -8,7 +8,9 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Created by cuipengfei on 16-12-27.
@@ -23,12 +25,8 @@ public class SSHClient {
      *
      * @throws Exception
      */
-    public void init() throws Exception {
+    public void init(String host,int port,String userName,String password) throws Exception {
         JSch jsch = new JSch(); // 创建JSch对象
-        String userName = "root";// 用户名
-        String password = "root";// 密码
-        String host = "10.10.33.162";// 服务器地址
-        int port = 22;// 端口号
         session = jsch.getSession(userName, host, port); // 根据用户名，主机ip，端口获取一个Session对象
         session.setPassword(password); // 设置密码
         Properties config = new Properties();
@@ -46,7 +44,7 @@ public class SSHClient {
      * @return
      * @throws Exception
      */
-    public String excute(String cmd) throws Exception {
+    public Set<String> excute(String cmd) throws Exception {
         ChannelExec channelExec = (ChannelExec) session.openChannel("exec");
         channelExec.setCommand(cmd);
         channelExec.setInputStream(null);
@@ -55,19 +53,19 @@ public class SSHClient {
         InputStream in = channelExec.getInputStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8")));
         String buf = null;
-        StringBuffer sb = new StringBuffer();
+        Set<String> ipList = new HashSet<>();
         while ((buf = reader.readLine()) != null) {
             String bufff=buf.substring(buf.indexOf(":")+1,buf.length());
-            sb.append(bufff+",");
-            System.out.println(bufff);// 打印控制台输出
+            if(bufff!=null&&bufff.length()>0){
+                ipList.add(bufff);
+                System.out.println(bufff);// 打印控制台输出
+            }else{
+                System.out.println("空:"+bufff);// 打印控制台输出
+            }
         }
         reader.close();
         channelExec.disconnect();
-        if(sb.length()>0){
-            return sb.substring(0,sb.length()-1).toString();
-        }else{
-            return sb.toString();
-        }
+        return ipList;
 
     }
 

@@ -8,30 +8,37 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.util.HashMap;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Created by cuipengfei on 16-12-27.
  */
 public class App {
     public static void main(String[] args) {
-        HashMap<String, String> map = new HashMap<>();
-        /**
-         *商品中心web服务
-         */
-        map.put("192.168.30.212", "BC-JYGOODS-WEB");
-        map.put("192.168.31.212", "BC-JYGOODS-WEB");
-
-        map.put("192.168.30.211", "BS-JYGOODS-PRODUCT");
-        map.put("192.168.31.211", "BS-JYGOODS-PRODUCT");
-        map.put("192.168.32.211", "BS-JYGOODS-PRODUCT");
-        map.put("192.168.33.211", "BS-JYGOODS-PRODUCT");
+        Properties prop=null;
+        try {
+            InputStream inStream=App.class.getClassLoader().getResourceAsStream("properties.properties");
+            prop = new Properties();
+            prop.load(new InputStreamReader(inStream,"UTF-8"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
+        }
+        if(prop==null){
+            return;
+        }
 
         SSHClient sshClient=new SSHClient();
         try {
-            sshClient.init();
-            String filePath = "/home/cuipengfei/商品basic服务统计.xlsx";
-            FileInputStream fileInputStream = new FileInputStream(filePath);
+            sshClient.init(prop.getProperty("host"),
+                    Integer.parseInt(prop.getProperty("port","22")),
+                    prop.getProperty("username"),
+                    prop.getProperty("password")
+            );
+            FileInputStream fileInputStream = new FileInputStream(prop.getProperty("filePath"));
             XSSFWorkbook wb = new XSSFWorkbook(fileInputStream);
             Sheet sheet = wb.getSheetAt(0);
             int index = sheet.getFirstRowNum();
@@ -45,17 +52,26 @@ public class App {
                     break;
                 }
                 url = row.getCell(2).getStringCellValue();
-                String cmd="cd /data/logs&&grep '"+url+"' access_log.2016-* > ~/aaa&&cat ~/aaa | cut -d ' ' -f 1 | sort | uniq -c | sort -nr | awk '{print$0 }' | head -n 10 | less";
-                String resultStr=sshClient.excute(cmd);
                 cell = row.createCell(4);
                 cell.setCellType(Cell.CELL_TYPE_STRING);
-                cell.setCellValue(resultStr);
+                String cmd="cd /data/logs&&grep '"+url+"' access_log.2016-* > ~/aaa&&cat ~/aaa | cut -d ' ' -f 1 | sort | uniq -c | sort -nr | awk '{print$0 }' | head -n 10 | less";
+                Set<String> resultSet=sshClient.excute(cmd);
+                StringBuffer resultStr=new StringBuffer();
+                if(resultSet!=null){
+                    for (String ip:resultSet) {
+                        resultStr.append(ip);
+                        resultStr.append("(");
+                        resultStr.append(prop.getProperty(ip,ip));
+                        resultStr.append(")");
+                    }
+                }
+                cell.setCellValue(resultStr.toString());
                 index++;
             }
             if (fileInputStream != null) {
                 fileInputStream.close();
             }
-            FileOutputStream outputStream = new FileOutputStream(filePath);
+            FileOutputStream outputStream = new FileOutputStream(prop.getProperty("filePath"));
             wb.write(outputStream);
             outputStream.flush();
             if (outputStream != null) {
